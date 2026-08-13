@@ -1,0 +1,46 @@
+# The dsh-desktop application's shipped overlay: the Web surface minus its HTTP
+# transport, applied over the desktop profile's base + web-app bundle layers
+# and AFTER the profile's and home-level user patch layers (a user edit can
+# never displace the transport strip). The desktop app's startHost then mounts
+# the IPC carrier itself; rows here only remove the Web carriage and pin the
+# native interaction backends.
+#
+# A patch replaces the targeted row's whole `config`, so rows below restate
+# nothing: they are disables plus one insert.
+
+# ── the HTTP transport strip (Electron carries the same protocol over IPC) ──
+
+- id: webserver
+  disabled: true
+
+- id: web-runtime
+  disabled: true
+
+- id: web-startup
+  disabled: true
+
+- id: client-hmr
+  disabled: true
+
+# The connection row STAYS mounted: its node half provides ctx.connection
+# (the gateway interceptor registry and the shared /api handler the desktop
+# IPC dispatcher consumes), and the browser roster ships its client entry.
+# Only the Web carriage goes: the bundle row's webRuntime inject and
+# trusted-host config are replaced with the desktop's empty values, and the
+# node half skips its HTTP routes when no webserver exists.
+- id: connection
+  inject: []
+  config:
+    trustedHosts: []
+
+# ── native interaction: the operator sits at this machine ───────────────────
+
+# The auto row resolves bind host / SSH / display and injects the webserver,
+# none of which exists in the desktop composition. Pin the native backend: one
+# OS directory chooser per pick, on every platform.
+- id: directory-picker
+  disabled: true
+
+- insert:
+    - id: directory-picker-native
+      name: '@deepseek-ai/dsh-host-directory-picker-native'

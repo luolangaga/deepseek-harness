@@ -114,6 +114,10 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
   web: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
   headless: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'],
+  // The desktop profile reuses the Web surface minus its HTTP transport: the
+  // desktop application's own overlay patch strips the transport rows and its
+  // startHost mounts the IPC carrier (see apps/desktop/config/desktop.patch.yml).
+  desktop: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */

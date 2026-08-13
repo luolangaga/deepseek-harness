@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`desktop host assembly > boots the stripped Web surface over the IPC transport and serves a unary call 1`] = `
+{
+  "boot": "dsh-desktop",
+  "graphIds": [
+    "@deepseek-ai/dsh-api-gateway",
+    "@deepseek-ai/dsh-api-remotes",
+    "@deepseek-ai/dsh-client-connection",
+    "@deepseek-ai/dsh-client-locale",
+    "@deepseek-ai/dsh-client-modules",
+    "@deepseek-ai/dsh-client-runtime",
+    "@deepseek-ai/dsh-client-ui-agent-preset",
+    "@deepseek-ai/dsh-client-ui-commands",
+    "@deepseek-ai/dsh-client-ui-conversation",
+    "@deepseek-ai/dsh-client-ui-cordis",
+    "@deepseek-ai/dsh-client-ui-deliverables",
+    "@deepseek-ai/dsh-client-ui-goal",
+    "@deepseek-ai/dsh-client-ui-input-trigger",
+    "@deepseek-ai/dsh-client-ui-jobs",
+    "@deepseek-ai/dsh-client-ui-layout",
+    "@deepseek-ai/dsh-client-ui-message-feedback",
+    "@deepseek-ai/dsh-client-ui-model-selection",
+    "@deepseek-ai/dsh-client-ui-permission-presets",
+    "@deepseek-ai/dsh-client-ui-plan",
+    "@deepseek-ai/dsh-client-ui-settings",
+    "@deepseek-ai/dsh-client-ui-settings-general",
+    "@deepseek-ai/dsh-client-ui-settings-models",
+    "@deepseek-ai/dsh-client-ui-settings-plugin-inventory",
+    "@deepseek-ai/dsh-client-ui-settings-plugins",
+    "@deepseek-ai/dsh-client-ui-sidebar",
+    "@deepseek-ai/dsh-client-ui-skill",
+    "@deepseek-ai/dsh-client-ui-subagent",
+    "@deepseek-ai/dsh-client-ui-theme",
+    "@deepseek-ai/dsh-client-ui-tool",
+    "@deepseek-ai/dsh-client-ui-trajectory",
+    "@deepseek-ai/dsh-client-ui-user-questions",
+    "@deepseek-ai/dsh-client-ui-workflow-run",
+    "@deepseek-ai/dsh-client-ui-workspace",
+    "@deepseek-ai/dsh-cordis-client-runner",
+    "@deepseek-ai/dsh-session-log-export",
+    "@deepseek-ai/dsh-typert-registry",
+  ],
+  "readyLine": [
+    "dsh desktop: ready",
+  ],
+  "sessionList": {
+    "items": [],
+  },
+}
+`;

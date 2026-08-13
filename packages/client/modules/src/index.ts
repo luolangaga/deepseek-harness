@@ -2,10 +2,12 @@
  * Node half of the client module system (`dsh.client` dual-face package): scans
  * the host Loader's entries for packages declaring `dsh.client`, composes the
  * `window.__DSH_BOOT__` entry graph (wire single source: {@link WebBootEntry}
- * in `./client/manifest.ts`), serves `/plugins/<id>/client.js` and its source
- * map, taps the index render to inject the boot manifest, and provides the
- * `clientModuleHost` service (the HMR node half's registration/notification
- * face).
+ * in `./client/manifest.ts`), and provides the `clientModuleHost` service (the
+ * HMR node half's registration/notification face). When the composition
+ * carries the Web HTTP server, it also serves `/plugins/<id>/client.js` and
+ * its source map and taps the index render to inject the boot manifest;
+ * non-HTTP carriers (the Electron desktop) consume {@link graph} and
+ * {@link clientPath} directly.
  *
  * Scanning is incremental per package — there is no full-rescan code path.
  * Every cordis `internal/plugin` emission (fiber construction/disposal) marks
@@ -176,13 +178,13 @@ export function injectBootManifest(html: string, graph: WebBootGraph): string {
 
 /**
  * The web plugin table service: incremental `dsh.client` scan + wire composition
- * + bundle route + index tap. Construction runs the activation scan
- * synchronously — a malformed declaration or missing bundle among the
- * already-loaded entries aggregates into one loud throw (FAILED fiber; the
- * boot activation audit reports it).
+ * (the HTTP bundle route and index tap are optional, see the module comment).
+ * Construction runs the activation scan synchronously — a malformed declaration
+ * or missing bundle among the already-loaded entries aggregates into one loud
+ * throw (FAILED fiber; the boot activation audit reports it).
  */
 export class ClientModuleRegistry extends Service {
-  static inject = ['webServer', 'loader']
+  static inject = ['loader']
 
   private readonly table = new Map<string, WebPluginRecord>()
   // Negative verdicts (unresolvable specifier — builtins like cordis:include,
@@ -194,6 +196,7 @@ export class ClientModuleRegistry extends Service {
   private readonly dirty = new Set<string>()
   private readonly resolvePkgJson: (spec: string) => string
   private flushQueued = false
+  private webCarriageRegistered = false
   private composed: WebBootGraph
 
   /**
@@ -238,12 +241,35 @@ export class ClientModuleRegistry extends Service {
       throw new ClientPackageCompositionError(failures)
     }
 
-    ctx.effect(
-      () => ctx.webServer.register({ kind: 'prefix', path: '/plugins', handler: this.serveBundle }),
+    // The HTTP-carriage integration (bundle route + index tap) registers
+    // synchronously when the webserver mounted first, and through an
+    // inject-waiting child plugin when it mounts later; the flag keeps the
+    // two paths from double-registering. A composition without an HTTP
+    // server — the Electron desktop IPC carrier reads {@link graph} and
+    // {@link clientPath} directly — never registers either, and the child
+    // stays permanently pending instead of failing the service.
+    this.registerWebCarriage(ctx)
+    ctx.plugin({
+      name: 'client-modules:web-carriage',
+      inject: ['webServer'],
+      apply: (webCtx) => {
+        this.registerWebCarriage(webCtx)
+      },
+    })
+  }
+
+  /** Register the bundle route and index tap when a webserver exists and no carrier path has yet. */
+  private registerWebCarriage(webCtx: Context): void {
+    if (this.webCarriageRegistered) return
+    const webServer = webCtx.get('webServer')
+    if (webServer === undefined) return
+    this.webCarriageRegistered = true
+    webCtx.effect(
+      () => webServer.register({ kind: 'prefix', path: '/plugins', handler: this.serveBundle }),
       'client-modules: bundle route',
     )
-    ctx.effect(
-      () => ctx.webServer.tapIndex(html => injectBootManifest(html, this.composed)),
+    webCtx.effect(
+      () => webServer.tapIndex(html => injectBootManifest(html, this.composed)),
       'client-modules: boot manifest injection',
     )
   }

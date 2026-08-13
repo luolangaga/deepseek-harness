@@ -68,7 +68,32 @@ function construct(packageNames: string[]): ClientModuleRegistry {
   return constructWithRoute(packageNames).service
 }
 
+/** Construct the node-half service in a composition without an HTTP server (the Electron desktop carrier). */
+function constructWithoutWebServer(packageNames: string[]): ClientModuleRegistry {
+  const ctx = new Context()
+  ctx.baseUrl = pathToFileURL(root!).href + '/'
+  ctx.provide('loader', {
+    *entries() {
+      for (const packageName of packageNames) {
+        yield { options: { name: packageName }, fiber: {}, disabled: false }
+      }
+    },
+  })
+  return new ClientModuleRegistry(ctx)
+}
+
 describe('client bundle activation', () => {
+  it('composes the graph without an HTTP server (the desktop IPC carrier reads graph/clientPath)', () => {
+    const packageName = '@fixture/carrier-free'
+    const clientPath = writePackage(packageName)
+    mkdirSync(dirname(clientPath), { recursive: true })
+    writeFileSync(clientPath, 'module.exports = {}\n')
+    const service = constructWithoutWebServer([packageName])
+    expect(service.graph().entries.map(entry => entry.id)).toEqual([packageName])
+    expect(service.clientPath(packageName)).toBe(clientPath)
+    expect(service.clientPath('@fixture/unknown')).toBeUndefined()
+  })
+
   it('allows sibling dsh roles', () => {
     const currentName = '@fixture/current-client-field'
     const clientPath = writePackage(currentName, {

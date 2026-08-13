@@ -1,4 +1,11 @@
-/** Host HTTP bridge for browser-client RPC. */
+/**
+ * Host Connection bridge: provides `ctx.connection` (the gateway-interceptor
+ * registry plus the shared `/api` fetch-handler composition) for every client
+ * shape. The browser HTTP carriage — the /api route and the two WebSocket
+ * downlinks — registers only when the composition carries the webserver; a
+ * non-HTTP carrier (the Electron desktop IPC dispatcher) consumes the shared
+ * handler directly and leaves the Web routes unmounted.
+ */
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
@@ -44,7 +51,7 @@ function assertImageBodyCapacity(ctx: Context, maxRequestBodyBytes: number): voi
 }
 
 /** Services required before providing Connection; API Proxy is an optional `/api` fallback. */
-export const inject = ['webServer']
+export const inject: readonly string[] = []
 
 /** Plugin config: the deployment's non-loopback serving authorities. */
 export interface ConnectionConfig {
@@ -170,27 +177,50 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       await bridge(req, res, fetchHandler, maxRequestBodyBytes)
     },
   }
-  ctx.effect(() => ctx.webServer.register(route), 'client-connection: /api route')
-  ctx.inject(['apiProxy'], (apiCtx) => {
-    assertImageBodyCapacity(apiCtx, maxRequestBodyBytes)
-    const downlinks = new WebSocketDownlinks(apiCtx.apiProxy)
-    const registerDownlink = (
-      path: string,
-      handle: WebUpgradeRoute['handler'],
-    ): void => {
-      apiCtx.effect(() => apiCtx.webServer.registerUpgrade({
-        path,
-        handler: (req, socket, head) => {
-          if (!isTrustedApiRequest(req, trustedHosts)) {
-            rejectWebSocketUpgrade(socket)
-            return
-          }
-          return handle(req, socket, head)
-        },
-      }), `client-connection: ${path} WebSocket`)
-    }
-    apiCtx.effect(() => () => downlinks.close(), 'client-connection: WebSocket downlinks')
-    registerDownlink(MUX_EVENTS_PATH, (req, socket, head) => { downlinks.handleMux(req, socket, head) })
-    registerDownlink(HOST_EVENTS_PATH, (req, socket, head) => { downlinks.handleHost(req, socket, head) })
+
+  // The HTTP-carriage integration (the /api route and the two WebSocket
+  // downlinks) registers synchronously when the webserver mounted first, and
+  // through an inject-waiting child plugin when it mounts later; the flag
+  // keeps the two paths from double-registering. A composition without an
+  // HTTP server — the Electron desktop IPC carrier dispatches through the
+  // connection service's shared handler directly — still provides
+  // ctx.connection for the gateway interceptor and the browser roster.
+  let webCarriageRegistered = false
+  const registerWebCarriage = (webCtx: Context): void => {
+    if (webCarriageRegistered) return
+    const webServer = webCtx.get('webServer')
+    if (webServer === undefined) return
+    webCarriageRegistered = true
+    webCtx.effect(() => webServer.register(route), 'client-connection: /api route')
+    webCtx.inject(['apiProxy'], (apiCtx) => {
+      assertImageBodyCapacity(apiCtx, maxRequestBodyBytes)
+      const downlinks = new WebSocketDownlinks(apiCtx.apiProxy)
+      const registerDownlink = (
+        path: string,
+        handle: WebUpgradeRoute['handler'],
+      ): void => {
+        apiCtx.effect(() => apiCtx.webServer.registerUpgrade({
+          path,
+          handler: (req, socket, head) => {
+            if (!isTrustedApiRequest(req, trustedHosts)) {
+              rejectWebSocketUpgrade(socket)
+              return
+            }
+            return handle(req, socket, head)
+          },
+        }), `client-connection: ${path} WebSocket`)
+      }
+      apiCtx.effect(() => () => downlinks.close(), 'client-connection: WebSocket downlinks')
+      registerDownlink(MUX_EVENTS_PATH, (req, socket, head) => { downlinks.handleMux(req, socket, head) })
+      registerDownlink(HOST_EVENTS_PATH, (req, socket, head) => { downlinks.handleHost(req, socket, head) })
+    })
+  }
+  registerWebCarriage(ctx)
+  ctx.plugin({
+    name: 'client-connection:web-carriage',
+    inject: ['webServer'],
+    apply: (webCtx) => {
+      registerWebCarriage(webCtx)
+    },
   })
 }

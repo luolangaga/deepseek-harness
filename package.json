@@ -17,11 +17,12 @@
     "website"
   ],
   "scripts": {
-    "build": "npm run build:lib && npm run build:web",
+    "build": "npm run build:lib && npm run build:web && npm run build:desktop",
     "build:lib": "npm run build:lib:host && npm run build:lib:client",
     "build:lib:host": "tsc -b tsconfig.host.json && tsdown --env.DSH_BUILD_FACE host",
     "build:lib:client": "tsc -b tsconfig.client.json && tsdown --env.DSH_BUILD_FACE client",
     "build:web": "pnpm --filter @deepseek-ai/dsh-web-frontend run build",
+    "build:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run build:assets",
     "clean": "tsx scripts/clean.ts",
     "change-scope": "tsx scripts/change-scope.ts",
     "typecheck": "npm run build:lib:host && npm run typecheck:contracts-ready",
