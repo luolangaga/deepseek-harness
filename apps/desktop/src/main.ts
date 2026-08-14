@@ -16,6 +16,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   protocol,
   screen,
   shell,
@@ -148,6 +149,10 @@ async function run(): Promise<void> {
 function createWindow(): BrowserWindow {
   const statePath = join(app.getPath('userData'), 'window-state.json')
   const state = clampWindowState(readWindowState(statePath), screen.getPrimaryDisplay().workAreaSize)
+  // The native caption buttons follow the system theme, not the app theme.
+  const overlayColors = (): { color: string; symbolColor: string } => nativeTheme.shouldUseDarkColors
+    ? { color: '#10101480', symbolColor: '#e8e8ea' }
+    : { color: '#f4f4f480', symbolColor: '#1a1a1c' }
   const win = new BrowserWindow({
     width: state.width,
     height: state.height,
@@ -162,8 +167,7 @@ function createWindow(): BrowserWindow {
     // platforms fall back to the backgroundColor above).
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#10101480',
-      symbolColor: '#e8e8ea',
+      ...overlayColors(),
       height: 48,
     },
     backgroundMaterial: 'mica',
@@ -174,6 +178,18 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       webSecurity: true,
     },
+  })
+  nativeTheme.on('updated', () => {
+    if (!win.isDestroyed()) win.setTitleBarOverlay({ ...overlayColors(), height: 48 })
+  })
+  // DWM drops the rounded corners of a frameless Mica window when it returns
+  // from fullscreen; re-applying the material makes DWM re-round them. No
+  // 'none' detour: the opaque fallback would flash and kill the OS
+  // fullscreen-transition animation.
+  win.on('leave-full-screen', () => {
+    setImmediate(() => {
+      if (!win.isDestroyed()) win.setBackgroundMaterial('mica')
+    })
   })
   if (state.maximized === true) win.maximize()
   // The splash paints fast and reads as instant; show on first paint rather

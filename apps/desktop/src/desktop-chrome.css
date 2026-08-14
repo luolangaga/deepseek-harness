@@ -3,11 +3,13 @@
  * dsh:// index (the browser surface never loads it). The app's top strip
  * becomes the title band: transparent over the window's Mica material, a
  * drag region, with the native caption buttons (Window Controls Overlay)
- * floating over its right edge. Shared-web markup stays untouched — the
- * shell publishes the `data-app-frame`/`data-phase` hooks, and the injected
- * window-chrome script stamps the drag attributes below at runtime (CSS
- * positional selectors cannot: the slot renderer wraps columns in
- * `display: contents` anchors).
+ * floating over its right edge. The whole app surface sits on the Mica
+ * material: the frame root and the sidebar are translucent so the material
+ * shows through, and content surfaces keep their palette fills. Shared-web
+ * markup stays untouched — the shell publishes the
+ * `data-app-frame`/`data-phase` hooks, and the injected window-chrome script
+ * stamps the drag attributes below at runtime (CSS positional selectors
+ * cannot: the slot renderer wraps columns in `display: contents` anchors).
  */
 
 :root {
@@ -16,10 +18,13 @@
   --dsh-titlebar-height: env(titlebar-area-height, 48px);
 }
 
-/* The frame and its columns drop their solid fill across the band so the
-   Mica window material shows through; below the band the app's own theme
-   colors resume unchanged. */
+/* Mica through the app body: the frame root drops its solid fill (the title
+   band stays fully transparent) and the palette fills that paint the main
+   surfaces become translucent, so the window material shows through the
+   whole surface instead of only the band. */
 [data-app-frame] {
+  --dsw-alias-bg-base: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, transparent);
+  --dsw-specific-sidebar-fill: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 74%, transparent);
   background: linear-gradient(
     to bottom,
     transparent 0,

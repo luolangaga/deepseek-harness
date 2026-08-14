@@ -56,7 +56,9 @@ describe('createProtocolHandler', () => {
     // the wordmark with the looping left-to-right light sweep.
     expect(html).toContain('background: transparent')
     expect(html).toContain('--dsw-alias-brand-primary: #4d6bfe')
-    expect(html).toContain('class="sweep"')
+    // The sweep is an SVG-internal clip over the wordmark (no CSS url() refs).
+    expect(html).toContain('dsh-sweep-band')
+    expect(html).toContain('clip-path="url(#dsh-sweep-clip)"')
     expect(html).toContain('@keyframes sweep')
   })
 
