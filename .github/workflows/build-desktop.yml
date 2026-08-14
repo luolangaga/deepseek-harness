@@ -1,24 +1,17 @@
-# Desktop installers: build the macOS dmg and the Windows NSIS installer
-# from master and on manual dispatch, and upload them as run artifacts.
+# Desktop release: on a v* tag push, build the macOS dmg and the Windows
+# NSIS installer and attach both to the GitHub Release for that tag.
 # No code signing on CI (no identity configured): the macOS build skips
 # signing/notarization via CSC_IDENTITY_AUTO_DISCOVERY=false and the Windows
 # installer ships unsigned.
 
-name: Desktop installers
+name: Desktop release
 
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
-
-# Cancel a superseded run on every event: a newer push or a manual dispatch
-# must displace the still-running build.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   PRIMARY_NODE_VERSION: '24'
@@ -56,27 +49,9 @@ jobs:
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
-      - name: Configure pnpm store path
-        id: pnpm-store
-        run: |
-          store_root="$HOME/.local/share/pnpm/store"
-          echo "PNPM_CONFIG_STORE_DIR=$store_root" >> "$GITHUB_ENV"
-          store_path=$(PNPM_CONFIG_STORE_DIR="$store_root" pnpm store path --silent)
-          echo "path=$store_path" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-
-
-      - name: Install (immutable)
+      - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Full harness build (host + client libs, web frontend, desktop shell);
-      # the desktop package's own build bundles lib/main.js with electron
-      # externalized plus the preload/shim/chrome assets.
       - name: Build the harness and the desktop shell
         run: |
           pnpm run build
@@ -88,10 +63,9 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: pnpm exec electron-builder --publish never
 
-      - name: Upload the installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: dsh-desktop-${{ matrix.os }}
-          path: apps/desktop/dist/${{ matrix.artifact }}
-          if-no-files-found: error
-          retention-days: 14
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "DeepSeek Harness Desktop $GITHUB_REF_NAME" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" apps/desktop/dist/${{ matrix.artifact }} --clobber
