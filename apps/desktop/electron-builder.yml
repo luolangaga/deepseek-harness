@@ -10,10 +10,10 @@ files:
   - config/**
   - package.json
 # The harness resolves plugins, profile bundles, and client bundles from real
-# files at runtime (module healing symlinks into node_modules), so the whole
-# dependency closure must live unpacked.
-asarUnpack:
-  - node_modules/**
+# files at runtime: the boot heals $DSH_HOME/profiles/node_modules with
+# junctions at the app's dependency tree, and Windows junctions cannot
+# traverse into an asar (a file). Everything ships unpacked.
+asar: false
 # No native modules in this app's closure; a rebuild pass only slows packaging.
 npmRebuild: false
 # The DeepSeek whale mark (build/icon.svg, rasterized by `pnpm run build:icon`);
