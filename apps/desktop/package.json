@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsdown --config tsdown.config.ts && node build/assets.mjs",
     "build:assets": "node build/assets.mjs",
+    "build:icon": "electron build/rasterize-icon.cjs",
     "start": "electron .",
     "dev": "electron .",
     "package": "pnpm run build && electron-builder",

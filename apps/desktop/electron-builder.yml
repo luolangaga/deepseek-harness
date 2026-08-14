@@ -16,13 +16,17 @@ asarUnpack:
   - node_modules/**
 # No native modules in this app's closure; a rebuild pass only slows packaging.
 npmRebuild: false
+# The DeepSeek whale mark (build/icon.svg, rasterized by `pnpm run build:icon`);
+# electron-builder derives the platform .ico/.icns from the single PNG.
 win:
+  icon: build/icon.png
   target:
     - nsis
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 mac:
+  icon: build/icon.png
   target:
     - dmg
   category: public.app-category.developer-tools

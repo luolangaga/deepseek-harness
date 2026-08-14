@@ -1,0 +1,97 @@
+# Desktop installers: build the macOS dmg and the Windows NSIS installer
+# from master and on manual dispatch, and upload them as run artifacts.
+# No code signing on CI (no identity configured): the macOS build skips
+# signing/notarization via CSC_IDENTITY_AUTO_DISCOVERY=false and the Windows
+# installer ships unsigned.
+
+name: Desktop installers
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Cancel a superseded run on every event: a newer push or a manual dispatch
+# must displace the still-running build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  # CI runs must never report to the production telemetry endpoint baked
+  # into apps/cli/cordis.yml (AppCLIEntry disables the row when set).
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (dmg)
+            os: macos-latest
+            artifact: '*.dmg'
+          - name: Windows (NSIS)
+            os: windows-latest
+            artifact: '*.exe'
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Configure pnpm store path
+        id: pnpm-store
+        run: |
+          store_root="$HOME/.local/share/pnpm/store"
+          echo "PNPM_CONFIG_STORE_DIR=$store_root" >> "$GITHUB_ENV"
+          store_path=$(PNPM_CONFIG_STORE_DIR="$store_root" pnpm store path --silent)
+          echo "path=$store_path" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      # Full harness build (host + client libs, web frontend, desktop shell);
+      # the desktop package's own build bundles lib/main.js with electron
+      # externalized plus the preload/shim/chrome assets.
+      - name: Build the harness and the desktop shell
+        run: |
+          pnpm run build
+          pnpm --filter @deepseek-ai/dsh-desktop run build
+
+      - name: Package the installer
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm exec electron-builder --publish never
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-desktop-${{ matrix.os }}
+          path: apps/desktop/dist/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 14
