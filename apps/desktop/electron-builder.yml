@@ -22,6 +22,8 @@ win:
   icon: build/icon.png
   target:
     - nsis
+    # The green/portable build: a zip of the unpacked app, extract and run.
+    - zip
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

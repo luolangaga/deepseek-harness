@@ -13,7 +13,7 @@ The desktop application: an Electron shell that boots the dsh host **in-process*
 
 ## Packaging
 
-electron-builder config lives in [`electron-builder.yml`](electron-builder.yml): NSIS on Windows, dmg on macOS. Two constraints drive the layout:
+electron-builder config lives in [`electron-builder.yml`](electron-builder.yml): NSIS installer plus a portable zip on Windows, dmg on macOS. Two constraints drive the layout:
 
 - **The app declares its whole composition closure as direct dependencies.** The boot chain imports peer packages statically and the loader resolves every patch row's plugin from the app's `node_modules` at runtime; electron-builder ships only declared production dependencies.
 - **`asar: false`.** The boot heals `$DSH_HOME/profiles/node_modules` with junctions at the app's dependency tree, and Windows junctions cannot traverse into an asar. Everything ships as real files.

@@ -13,7 +13,7 @@
 
 ## 打包
 
-electron-builder 配置在 [`electron-builder.yml`](electron-builder.yml)：Windows 出 NSIS，macOS 出 dmg。两个约束决定了布局：
+electron-builder 配置在 [`electron-builder.yml`](electron-builder.yml)：Windows 出 NSIS 安装包外加绿色版 zip，macOS 出 dmg。两个约束决定了布局：
 
 - **应用把整个组合闭包声明为直接依赖。** 启动链静态导入 peer 包，loader 在运行时从应用的 `node_modules` 按名解析每个补丁行的插件；electron-builder 只打包已声明的生产依赖。
 - **`asar: false`。** 启动时会把 `$DSH_HOME/profiles/node_modules` 用 junction 指向应用的依赖树，而 Windows junction 无法穿进 asar。一切以真实文件发布。

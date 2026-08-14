@@ -29,9 +29,9 @@ jobs:
           - name: macOS (dmg)
             os: macos-latest
             artifact: '*.dmg'
-          - name: Windows (NSIS)
+          - name: Windows (NSIS + zip)
             os: windows-latest
-            artifact: '*.exe'
+            artifact: '*.{exe,zip}'
     runs-on: ${{ matrix.os }}
     defaults:
       run:
