@@ -46,11 +46,18 @@ describe('createProtocolHandler', () => {
     expect(new URL(DESKTOP_ORIGIN).hostname).toBe('localhost')
   })
 
-  it('serves the splash on the index route until the host is ready', async () => {
+  it('serves the animated wordmark splash on the index route until the host is ready', async () => {
     const serve = handler(() => ({ state: 'booting' }))
     const response = await serve(new Request('dsh://localhost/index.html'))
     expect(response.status).toBe(200)
-    expect(await response.text()).toContain('DeepSeek Harness is starting')
+    const html = await response.text()
+    expect(html).toContain('DeepSeek Harness is starting')
+    // The splash keeps the page transparent (Mica shows through) and centers
+    // the wordmark with the looping left-to-right light sweep.
+    expect(html).toContain('background: transparent')
+    expect(html).toContain('--dsw-alias-brand-primary: #4d6bfe')
+    expect(html).toContain('class="sweep"')
+    expect(html).toContain('@keyframes sweep')
   })
 
   it('injects the boot manifest, the shim tag, and the desktop chrome link into the settled index', async () => {
