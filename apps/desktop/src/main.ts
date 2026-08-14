@@ -13,12 +13,16 @@ import { fileURLToPath } from 'node:url'
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
+  net,
   protocol,
   screen,
+  session,
   shell,
 } from 'electron'
 import type {} from '@deepseek-ai/dsh-client-modules'
@@ -82,6 +86,17 @@ async function run(): Promise<void> {
   await app.whenReady()
 
   installMenu()
+  // The app starts downloads only for the context menu's "save image":
+  // route them through a save dialog instead of the default download
+  // directory.
+  session.defaultSession.on('will-download', (event, item) => {
+    const options: Electron.SaveDialogOptions = { defaultPath: item.getFilename() }
+    const target = mainWindow === null
+      ? dialog.showSaveDialogSync(options)
+      : dialog.showSaveDialogSync(mainWindow, options)
+    if (target === undefined) event.preventDefault()
+    else item.setSavePath(target)
+  })
   protocol.handle(SCHEME, createProtocolHandler({
     status: getBootState,
     modules: () => {
@@ -214,6 +229,9 @@ function createWindow(): BrowserWindow {
   win.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(`${DESKTOP_ORIGIN}/`) && url !== 'about:blank') event.preventDefault()
   })
+  win.webContents.on('context-menu', (_event, params) => {
+    showContextMenu(win, params)
+  })
   win.on('closed', () => { mainWindow = null })
   void win.loadURL(`${DESKTOP_ORIGIN}/index.html`)
   attachRelay(win)
@@ -266,4 +284,84 @@ function installMenu(): void {
     { role: 'windowMenu' },
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+/** Copy an image whose URL the main process can fetch (blob: URLs are renderer-only and never offered). */
+async function copyImageFromUrl(srcURL: string): Promise<void> {
+  try {
+    const response = await net.fetch(srcURL)
+    if (!response.ok) return
+    const image = nativeImage.createFromBuffer(Buffer.from(await response.arrayBuffer()))
+    if (!image.isEmpty()) clipboard.writeImage(image)
+  } catch {
+    // The item is only offered for fetchable URLs; a failed fetch stays silent.
+  }
+}
+
+/**
+ * Native right-click menu for the app surface. The renderer has no context
+ * menu and a bare Electron window shows nothing on right-click; the menu is
+ * assembled per target: clipboard actions in editable fields, copy for
+ * selections, navigation + reload on empty surfaces, link actions on links,
+ * and image actions on fetchable images. Labels are explicit Chinese —
+ * Electron's role labels follow the OS language, not the app's audience.
+ * @param win - the window the menu pops up in.
+ * @param params - the context-menu event's target facts.
+ */
+function showContextMenu(win: BrowserWindow, params: Electron.ContextMenuParams): void {
+  const template: Electron.MenuItemConstructorOptions[] = []
+  if (params.isEditable) {
+    template.push(
+      { label: '剪切', click: () => { win.webContents.cut() } },
+      { label: '复制', click: () => { win.webContents.copy() } },
+      { label: '粘贴', click: () => { win.webContents.paste() } },
+      { label: '粘贴为纯文本', click: () => { win.webContents.pasteAndMatchStyle() } },
+    )
+    if (params.selectionText !== '') template.push({ label: '删除', click: () => { win.webContents.delete() } })
+    template.push({ type: 'separator' }, { label: '全选', click: () => { win.webContents.selectAll() } })
+  } else if (params.selectionText !== '') {
+    template.push(
+      { label: '复制', click: () => { win.webContents.copy() } },
+      { type: 'separator' },
+      { label: '全选', click: () => { win.webContents.selectAll() } },
+    )
+  } else {
+    // An empty surface (no input, no selection): navigation and reload are
+    // the only useful actions; the navigation items disable themselves
+    // when there is no history.
+    const history = win.webContents.navigationHistory
+    template.push(
+      { label: '返回', enabled: history.canGoBack(), click: () => { history.goBack() } },
+      { label: '前进', enabled: history.canGoForward(), click: () => { history.goForward() } },
+      { type: 'separator' },
+      { label: '刷新', click: () => { win.webContents.reload() } },
+    )
+  }
+  if (params.linkURL !== '') {
+    template.push({ type: 'separator' })
+    template.push(
+      {
+        label: '复制链接',
+        click: () => { clipboard.writeText(params.linkURL) },
+      },
+      {
+        label: '用浏览器打开',
+        click: () => { void shell.openExternal(params.linkURL) },
+      },
+    )
+  }
+  if (params.mediaType === 'image' && /^(https?|data|file|dsh):/i.test(params.srcURL)) {
+    template.push({ type: 'separator' })
+    template.push(
+      {
+        label: '复制图片',
+        click: () => { void copyImageFromUrl(params.srcURL) },
+      },
+      {
+        label: '图片另存为…',
+        click: () => { void win.webContents.downloadURL(params.srcURL) },
+      },
+    )
+  }
+  if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: win })
 }
